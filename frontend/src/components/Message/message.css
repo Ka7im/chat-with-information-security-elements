@@ -1,0 +1,17 @@
+.message-wrapper {
+  padding: 5px;
+  border: 1px solid gray;
+  border-radius: 5px;
+  display: flex;
+  flex-direction: column;
+  max-width: 600px;
+}
+
+.login {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.message {
+  font-size: 12px;
+}
