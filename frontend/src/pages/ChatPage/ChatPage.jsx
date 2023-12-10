@@ -7,7 +7,7 @@ import { sha1 } from '../../utils/sha1';
 import { generateRandomBigInt, getRSAKeys, encryptRSA, decryptRSA } from '../../utils/RSA';
 import { diffieHellman, getPublicKey, getSessionKey } from '../../utils/DiffieHellman';
 import bigInt from 'big-integer';
-import { rc4Encrypt, rc4Decrypt } from '../../utils/RC4';
+import { rc4 } from '../../utils/RC4';
 import {useNavigate} from 'react-router-dom'
 
 const ChatPage = () => {
@@ -206,7 +206,7 @@ const ChatPage = () => {
     // const ownerLogin = JSON.parse(localStorage.getItem('owner')).login
     console.log(message)
 
-    const text = rc4Decrypt(sessionKey.current, message.cipherText)
+    const text = rc4(sessionKey.current, message.cipherText)
 
     const ownerHCipherText = sha1(message.cipherText)
 
@@ -298,7 +298,7 @@ const ChatPage = () => {
 
     console.log('RSA-keys', RSAKeys.current, 'пользователь:', login)
     console.log('sessionKey', sessionKey.current.toString(), 'пользователь:', login)
-    const cipherText = rc4Encrypt(sessionKey.current, inputValue)
+    const cipherText = rc4(sessionKey.current, inputValue)
     console.log('cipherText', cipherText, 'пользователь:', login)
 
     const HCipherText = sha1(cipherText)
