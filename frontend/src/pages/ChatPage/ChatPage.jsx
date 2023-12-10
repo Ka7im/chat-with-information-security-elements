@@ -33,6 +33,8 @@ const ChatPage = () => {
   const handleAddUser = () => {
     localStorage.removeItem(userLogin)
     localStorage.setItem(userLogin, JSON.stringify({login: userLogin, password: userPassword}))
+    setUserLogin('')
+    setUserPassword('')
   }
 
   const handleAuthentication = (login, socket) => {
@@ -367,8 +369,8 @@ const ChatPage = () => {
             <div className='chat-page-commander-form-title'>
               Введите логин и пароль пользователя
             </div>
-            <Input placeholder={'Логин'} onChange={handleInput(setUserLogin)}/>
-            <Input placeholder={'Пароль'} type='password' onChange={handleInput(setUserPassword)}/>
+            <Input placeholder={'Логин'} onChange={handleInput(setUserLogin)} value={userLogin}/>
+            <Input placeholder={'Пароль'} type='password' onChange={handleInput(setUserPassword)} value={userPassword}/>
             <Button text={'Отправить'}  onClick={handleAddUser}/>
           </div>
       </div>
