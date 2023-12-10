@@ -53,27 +53,27 @@ export function generatePrime(bits, k) {
 export const getRSAKeys = (bit) => {
     // log2(n)
     const p = generatePrime(bit, 10)
-    console.log('p', p.toString())
+    // console.log('p', p.toString())
 
     // log2(n)
     const q = generatePrime(bit, 10)
-    console.log('q', q.toString())
+    // console.log('q', q.toString())
 
     const n = p.multiply(q)
-    console.log('n', n.toString())
+    // console.log('n', n.toString())
 
     const phiN = p.minus(1).multiply(q.minus(1))
-    console.log('phiN', phiN.toString())
+    // console.log('phiN', phiN.toString())
 
     const e = bigInt(65537)
-    console.log('e', e.toString())
+    // console.log('e', e.toString())
 
     const d = generateD(e, phiN)
-    console.log('d', d.toString())
+    // console.log('d', d.toString())
 
     const multDAndE = d.multiply(e)
 
-    console.log('mod', multDAndE.mod(phiN).toString())
+    // console.log('mod', multDAndE.mod(phiN).toString())
 
     return {p, q, n, phiN, e, d}
 }

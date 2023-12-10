@@ -4,15 +4,25 @@ import Message from '../../components/Message/Message';
 import Button from '../../components/Button/Button';
 import { useEffect, useRef, useState } from 'react';
 import { sha1 } from '../../utils/sha1';
-import { generateRandomBigInt } from '../../utils/RSA';
+import { generateRandomBigInt, getRSAKeys, encryptRSA, decryptRSA } from '../../utils/RSA';
+import { diffieHellman, getPublicKey, getSessionKey } from '../../utils/DiffieHellman';
+import bigInt from 'big-integer';
+import { rc4Encrypt, rc4Decrypt } from '../../utils/RC4';
+import {useNavigate} from 'react-router-dom'
 
 const ChatPage = () => {
   const socket = useRef();
+  const status = useRef(false);
+  const RSAKeys = useRef(null)
+  const sessionKey = useRef('')
+  const diffieHellmanSecretKeyRef = useRef('')
+  const pRef = useRef('')
   const [messages, setMessages] = useState([])
   const [inputValue, setInputValue] = useState('')
   const [companionLogin, setCompanionLogin] = useState('')
   const [userLogin, setUserLogin] = useState('')
   const [userPassword, setUserPassword] = useState('')
+  const navigate = useNavigate()
 
   const handleInput = (setState) => {
     return (e) => {
@@ -87,12 +97,15 @@ const ChatPage = () => {
 
     if (ownerH === message.message && findedUser.timestamp >= Date.now()) {
       console.log('Соединение успешно установлено!')
+      setCompanionLogin(message.login)
+      status.current = true
       socket.current?.send(JSON.stringify({
         event: 'private-message',
         login: ownerLogin,
         message: 'Соединение успешно установлено!',
         to: message.login,
-        type: 'status'
+        type: 'status',
+        status: true
       }))
     } else {
       console.log('Соединение не удалось установить!')
@@ -101,10 +114,111 @@ const ChatPage = () => {
         login: ownerLogin,
         message: 'Соединение не удалось установить!',
         to: message.login,
-        type: 'status'
+        type: 'status',
+        status: false
       }))
     }
   }
+
+  const handleStatus = (message, socket) => {
+    const ownerLogin = JSON.parse(localStorage.getItem('owner')).login
+    console.log(message.message)
+
+    if (message.status) {
+      status.current = true
+      socket.current?.send(JSON.stringify({
+        event: 'private-message',
+        login: ownerLogin,
+        to: message.login,
+        type: 'create-DH'
+      }))
+    }
+  }
+
+  const handleCreateDH = (message, socket) => {
+    const ownerLogin = JSON.parse(localStorage.getItem('owner')).login
+    const {g, p, publicKey, privateKey} = diffieHellman()
+    console.log('g', g.toString(), 'p', p.toString(), 'publicKey', publicKey.toString(),
+     'privateKey', privateKey.toString(), 'пользователь:', ownerLogin.toString())
+
+    pRef.current = p
+    diffieHellmanSecretKeyRef.current = privateKey
+
+    socket.current?.send(JSON.stringify({
+      event: 'private-message',
+      login: ownerLogin,
+      to: message.login,
+      publicKey,
+      g,
+      p,
+      type: 'create-public-key'
+    }))    
+  }
+
+  const handleCreatePublicKey = (message, socket) => {
+    const ownerLogin = JSON.parse(localStorage.getItem('owner')).login
+
+    const privateKey = generateRandomBigInt(512)
+
+    console.log('privateKey', privateKey.toString(), 'пользователь:', ownerLogin)
+
+    diffieHellmanSecretKeyRef.current = privateKey
+    
+    const publicKey = getPublicKey(bigInt(message.g), privateKey, bigInt(message.p))
+
+    console.log('publicKey', publicKey.toString(), 'пользователь:', ownerLogin)
+
+
+    const sessionKey = getSessionKey(bigInt(message.publicKey), privateKey, bigInt(message.p))
+    sessionKey.current = sessionKey
+
+    console.log('sessionKey', sessionKey.toString(), 'пользователь:', ownerLogin)
+
+
+    socket.current?.send(JSON.stringify({
+      event: 'private-message',
+      login: ownerLogin,
+      to: message.login,
+      publicKey,
+      type: 'create-session-key'
+    }))
+  }
+
+  const handleCreateSessionKey = (message, socket) => {
+    const ownerLogin = JSON.parse(localStorage.getItem('owner')).login
+
+    const sessionKey = getSessionKey(bigInt(message.publicKey), diffieHellmanSecretKeyRef.current, bigInt(pRef.current))
+    console.log('sessionKey', sessionKey.toString(), 'пользователь:', ownerLogin)
+    sessionKey.current = sessionKey
+
+    // socket.current?.send(JSON.stringify({
+    //   event: 'private-message',
+    //   login: ownerLogin,
+    //   to: message.login,
+    //   publicKey,
+    //   type: 'create-session-key'
+    // }))
+  }
+  
+  const handleTakeMessage = (message, socket) => {
+    // const ownerLogin = JSON.parse(localStorage.getItem('owner')).login
+    console.log(message)
+
+    const text = rc4Decrypt(sessionKey.current, message.cipherText)
+
+    const ownerHCipherText = sha1(message.cipherText)
+
+    const HCipherText = decryptRSA(message.RSAHCipherText, message.e, message.n) // H = RSA(RSAHCipherText)   
+
+    console.log('HCipherText', HCipherText)
+    console.log('ownerHCipherText', ownerHCipherText)
+    
+    if (HCipherText === ownerHCipherText) {
+      setMessages(prev => [...prev, {login: message.login, text: text}])
+    }
+
+  }
+
 
   useEffect(() => {
     socket.current = new WebSocket("ws://localhost:5000");
@@ -135,11 +249,28 @@ const ChatPage = () => {
           handleCheckH(message, socket)
           break;
         case 'status':
-          console.log(message.message)
+          handleStatus(message, socket)
           break;
+        case 'create-DH': 
+          if (status.current) {
+            handleCreateDH(message, socket)
+          }
+          break;
+        case 'create-public-key':
+          if (status.current) {
+            handleCreatePublicKey(message, socket)   
+          }
+        break;
+        case 'create-session-key':
+          if (status.current) {
+            handleCreateSessionKey(message, socket)   
+          }
+          break;
+        case 'send-message':
+          if (status.current) {
+            handleTakeMessage(message, socket)
+          }
       }
-
-      setMessages(message)
     };
 
 
@@ -159,14 +290,37 @@ const ChatPage = () => {
   const handleSendMessage = () => {
     const login = JSON.parse(localStorage.getItem('owner')).login
 
+    if (!RSAKeys.current) {
+      RSAKeys.current = getRSAKeys(512)
+    }
+
+    console.log('RSA-keys', RSAKeys.current, 'пользователь:', login)
+    console.log('sessionKey', sessionKey.current.toString(), 'пользователь:', login)
+    const cipherText = rc4Encrypt(sessionKey.current, inputValue)
+    console.log('cipherText', cipherText, 'пользователь:', login)
+
+    const HCipherText = sha1(cipherText)
+    console.log('HCipherText', HCipherText, 'пользователь:', login)
+
+    const RSAHCipherText = encryptRSA(HCipherText, RSAKeys.current.d, RSAKeys.current.n)
+    console.log('RSAHCipherText', RSAHCipherText, 'пользователь:', login)
+
     const message = {
       event: "private-message",
       login,
-      message: inputValue,
-      to: companionLogin
+      cipherText,
+      HCipherText,
+      RSAHCipherText,
+      e: RSAKeys.current.e,
+      n: RSAKeys.current.n,
+      to: companionLogin,
+      type: 'send-message'
     }
 
     socket.current.send(JSON.stringify(message))
+    setInputValue('')
+
+    setMessages(prev => [...prev, {login, text: inputValue}])
   }
 
   const handleSendToCompanionLogin = () => {
@@ -183,9 +337,12 @@ const ChatPage = () => {
     socket.current.send(JSON.stringify(message))
   }
 
-  // const handleSendLogin = () => {
+  const handleExit = () => {
+    // localStorage.clear()
 
-  // }
+    navigate('/register')    
+  }
+
 
   return (
     <div className='chat-page'>
@@ -197,25 +354,15 @@ const ChatPage = () => {
           <Button text={'Выбрать'} onClick={handleSendToCompanionLogin} />
         </div>
         <div className="messages">
-          <Message/>
-          <Message/>
-          <Message/>
-          <Message/>
-          <Message/>
-          <Message/>
-          <Message/>
-          <Message/>
-          <Message/>
-          <Message/>
-          <Message/>
+          {messages.map((message, index) => <Message key={index} login={message.login} text={message.text} />)}
         </div>
         <div className="chat-page-sender">
           <Input placeholder={'Сообщение'} onChange={handleInput(setInputValue)} value={inputValue} onClick={handleSendMessage}/>
-          <Button text={'Отправить'}/>
+          <Button text={'Отправить'} onClick={handleSendMessage}/>
         </div>
       </div>
       <div style={{display: 'flex', flexDirection: 'column'}}>
-          <Button text={'Выйти'} />
+          <Button text={'Выйти'} onClick={handleExit} />
           <div className="commander-form">
             <div className='chat-page-commander-form-title'>
               Введите логин и пароль пользователя

@@ -5,7 +5,6 @@ import './registerPage.css'
 import Button from '../../components/Button/Button';
 import FormTitle from '../../components/FormTitle/FormTitle';
 import { useNavigate } from 'react-router-dom';
-import { sha1 } from '../../utils/sha1';
 
 
 const RegisterPage = () => {

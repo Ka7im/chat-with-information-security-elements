@@ -54,11 +54,11 @@ export function diffieHellman() {
   return {p, g, privateKey, publicKey}
 }
 
-function getSessionKey (publicKey, privateKey, p) {
+export function getSessionKey (publicKey, privateKey, p) {
   return publicKey.modPow(privateKey, p)
 }
 
-function getPublicKey (g, privateKey, p) {
+export function getPublicKey (g, privateKey, p) {
   return g.modPow(privateKey, p)
 }
 
